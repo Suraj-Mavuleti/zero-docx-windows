@@ -1,92 +1,123 @@
-import customtkinter as ctk
-import threading
-import time
-import math
-import socket
-import urllib.request
-import json
-import sqlite3
-import random
+import sys
+import gi
+import os
+gi.require_version('Gtk', '3.0')
+from gi.repository import Gtk, Gdk, GLib, Pango
 
-ctk.set_appearance_mode("dark")
-
-class App(ctk.CTk):
+class ZeroDocx(Gtk.Window):
     def __init__(self):
-        super().__init__()
-        self.title("Word Processor Pro")
-        self.geometry("1100x750")
+        super().__init__(title="Zero Docx - Ultimate Studio")
+        self.set_default_size(1100, 850)
         
-        # Premium Enterprise Color Palette
-        self.bg_color = "#0B0C10"          # Deep rich black/gray
-        self.sidebar_color = "#1F2833"     # Slate gray sidebar
-        self.accent_color = "#66FCF1"      # Neon cyan accent
-        self.text_primary = "#FFFFFF"      # Crisp white
-        self.text_secondary = "#C5C6C7"    # Soft gray text
-        self.panel_bg = "#161920"          # Slightly raised panel
+        self.header = Gtk.HeaderBar()
+        self.header.set_show_close_button(True)
+        self.header.props.title = ""
+        self.header.get_style_context().add_class("hidden-header")
+        self.set_titlebar(self.header)
         
-        self.configure(fg_color=self.bg_color)
+        self.setup_css()
         
-        self.grid_rowconfigure(0, weight=1)
-        self.grid_columnconfigure(1, weight=1)
+        main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.add(main_box)
         
-        # Sidebar Navigation
-        self.sidebar = ctk.CTkFrame(self, width=240, corner_radius=0, fg_color=self.sidebar_color)
-        self.sidebar.grid(row=0, column=0, sticky="nsew")
-        self.sidebar.grid_rowconfigure(5, weight=1)
+        # ================= RIBBON =================
+        ribbon = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        ribbon.get_style_context().add_class("ribbon")
+        main_box.pack_start(ribbon, False, False, 0)
         
-        # Branding
-        self.logo_label = ctk.CTkLabel(self.sidebar, text="DOCX", font=ctk.CTkFont("Segoe UI", size=26, weight="bold"), text_color=self.accent_color)
-        self.logo_label.grid(row=0, column=0, padx=25, pady=(35, 5), sticky="w")
+        logo = Gtk.Label(label="Z E R O D O C X")
+        logo.get_style_context().add_class("sidebar-logo")
+        logo.set_margin_start(20)
+        logo.set_margin_end(30)
+        ribbon.pack_start(logo, False, False, 0)
         
-        self.version_label = ctk.CTkLabel(self.sidebar, text="Enterprise Edition v8.5", font=ctk.CTkFont("Segoe UI", size=12), text_color=self.text_secondary)
-        self.version_label.grid(row=1, column=0, padx=25, pady=(0, 35), sticky="w")
+        tools_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        tools_box.set_valign(Gtk.Align.CENTER)
         
-        # Nav Buttons
-        self.btn_dash = ctk.CTkButton(self.sidebar, text="  Overview", font=ctk.CTkFont("Segoe UI", size=14, weight="bold"), fg_color=self.panel_bg, text_color=self.text_primary, anchor="w", hover_color=self.accent_color)
-        self.btn_dash.grid(row=2, column=0, padx=15, pady=8, sticky="ew")
+        # Formatting buttons
+        for icon in ["𝐁", "𝐼", "𝐔", "🔗", "🖼️", "📊"]:
+            btn = Gtk.Button(label=icon)
+            btn.get_style_context().add_class("format-btn")
+            tools_box.pack_start(btn, False, False, 0)
+            
+        sep = Gtk.Separator(orientation=Gtk.Orientation.VERTICAL)
+        sep.set_margin_start(10)
+        sep.set_margin_end(10)
+        tools_box.pack_start(sep, False, False, 0)
         
-        self.btn_set = ctk.CTkButton(self.sidebar, text="  Configuration", font=ctk.CTkFont("Segoe UI", size=14), fg_color="transparent", text_color=self.text_secondary, anchor="w", hover_color=self.panel_bg)
-        self.btn_set.grid(row=3, column=0, padx=15, pady=8, sticky="ew")
+        for align in ["⬅️", "↔️", "➡️", "🔃"]:
+            btn = Gtk.Button(label=align)
+            btn.get_style_context().add_class("format-btn")
+            tools_box.pack_start(btn, False, False, 0)
+            
+        ribbon.pack_start(tools_box, False, False, 0)
         
-        self.btn_logs = ctk.CTkButton(self.sidebar, text="  Diagnostics", font=ctk.CTkFont("Segoe UI", size=14), fg_color="transparent", text_color=self.text_secondary, anchor="w", hover_color=self.panel_bg)
-        self.btn_logs.grid(row=4, column=0, padx=15, pady=8, sticky="ew")
+        btn_export = Gtk.Button(label="📥 Export PDF")
+        btn_export.get_style_context().add_class("action-btn")
+        btn_export.set_valign(Gtk.Align.CENTER)
+        btn_export.set_margin_end(20)
+        ribbon.pack_end(btn_export, False, False, 0)
         
-        # Main Work Area
-        self.main_view = ctk.CTkFrame(self, fg_color=self.bg_color, corner_radius=0)
-        self.main_view.grid(row=0, column=1, sticky="nsew", padx=30, pady=30)
+        # ================= EDITOR WORKSPACE =================
+        workspace = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        workspace.get_style_context().add_class("workspace-bg")
+        main_box.pack_start(workspace, True, True, 0)
         
-        self.header = ctk.CTkLabel(self.main_view, text="Word Processor Pro", font=ctk.CTkFont("Segoe UI", size=32, weight="bold"), text_color=self.text_primary)
-        self.header.pack(anchor="w", pady=(0, 20))
+        # Scrollable area
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+        workspace.pack_start(scroll, True, True, 0)
         
-        # Premium Content Glass Panel
-        self.main_frame = ctk.CTkFrame(self.main_view, fg_color=self.panel_bg, corner_radius=15, border_width=1, border_color="#2A2F3A")
-        self.main_frame.pack(fill=ctk.BOTH, expand=True)
+        # Centered paper wrapper
+        paper_align = Gtk.Alignment.new(0.5, 0.0, 0, 1)
+        paper_align.set_padding(40, 40, 0, 0)
+        scroll.add(paper_align)
         
-        self.setup_ui()
+        self.paper = Gtk.TextView()
+        self.paper.get_style_context().add_class("paper")
+        self.paper.set_size_request(850, 1100)
+        self.paper.set_wrap_mode(Gtk.WrapMode.WORD)
+        self.paper.set_left_margin(80)
+        self.paper.set_right_margin(80)
+        self.paper.set_top_margin(80)
+        self.paper.set_bottom_margin(80)
+        self.paper.modify_font(Pango.FontDescription('Times New Roman 14'))
         
-    
-    def setup_ui(self):
-        toolbar = ctk.CTkFrame(self.main_frame, fg_color="transparent")
-        toolbar.pack(fill=ctk.X, padx=25, pady=20)
+        self.paper.get_buffer().set_text(
+            "Ultimate Studio Business Proposal\n\n"
+            "Date: September 2026\n"
+            "Author: Studio Team\n\n"
+            "1. Executive Summary\n"
+            "The integration of glassmorphism across all core applications has led to a 400% increase in user retention. "
+            "Our secure architecture ensures privacy without compromising aesthetics.\n\n"
+            "2. Objectives\n"
+            "- Finalize the Docx implementation.\n"
+            "- Prepare for full suite deployment.\n\n"
+            "This document is a placeholder demonstrating the premium zero-docx engine."
+        )
         
-        btn_kwargs = {"font": ctk.CTkFont(weight="bold"), "corner_radius": 8, "height": 36}
+        paper_align.add(self.paper)
         
-        ctk.CTkButton(toolbar, text="💾 Save Document", fg_color=self.accent_color, text_color="#000000", hover_color="#45A29E", command=self.save, **btn_kwargs).pack(side=ctk.LEFT, padx=(0, 10))
-        ctk.CTkButton(toolbar, text="🗑 Clear Form", fg_color="transparent", border_width=1, border_color="#FF453A", text_color="#FF453A", hover_color="#331111", command=self.clear, **btn_kwargs).pack(side=ctk.LEFT)
-        
-        self.text_area = ctk.CTkTextbox(self.main_frame, font=ctk.CTkFont("Georgia", 18), fg_color="#101217", text_color=self.text_primary, corner_radius=10, border_width=1, border_color="#2A2F3A")
-        self.text_area.pack(fill=ctk.BOTH, expand=True, padx=25, pady=(0, 25))
-        self.text_area.insert("0.0", "Begin drafting your document here...")
-        
-    def save(self):
-        with open("document.txt", "w") as f:
-            f.write(self.text_area.get("0.0", "end"))
-        self.header.configure(text="Word Processor Pro (Saved!)")
-        
-    def clear(self):
-        self.text_area.delete("0.0", "end")
-
+    def setup_css(self):
+        css = b'''
+            window { background-color: #030305; }
+            .hidden-header { background: #030305; min-height: 0px; padding: 0px; border: none; box-shadow: none; }
+            .ribbon { background-color: rgba(10, 12, 18, 0.98); border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding: 15px 0px; }
+            .sidebar-logo { color: #FFFFFF; font-size: 20px; font-weight: 900; letter-spacing: 5px; text-shadow: 0 0 15px rgba(0, 153, 255, 0.6); }
+            .format-btn { background: transparent; color: #FFFFFF; border: 1px solid transparent; border-radius: 8px; font-size: 16px; padding: 8px 12px; transition: all 0.2s ease; }
+            .format-btn:hover { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); }
+            .action-btn { background: linear-gradient(45deg, #0099FF, #0055FF); color: #FFFFFF; border-radius: 12px; font-weight: bold; padding: 8px 15px; border: none; box-shadow: 0 5px 15px rgba(0, 153, 255, 0.3); transition: all 0.3s; }
+            .action-btn:hover { box-shadow: 0 8px 25px rgba(0, 153, 255, 0.5); }
+            .workspace-bg { background: #050608; }
+            .paper { background-color: #FFFFFF; color: #000000; box-shadow: 0 15px 50px rgba(0,0,0,0.8); border-radius: 4px; line-height: 1.8; caret-color: #000000; }
+            .paper text { background-color: #FFFFFF; }
+        '''
+        provider = Gtk.CssProvider()
+        provider.load_from_data(css)
+        Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
 if __name__ == "__main__":
-    app = App()
-    app.mainloop()
+    win = ZeroDocx()
+    win.connect("destroy", Gtk.main_quit)
+    win.show_all()
+    Gtk.main()
